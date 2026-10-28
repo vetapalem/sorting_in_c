@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive C Bubble Sort Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            user-select: none;
+        }
+        code, pre, .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .bar-anim {
+            transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .code-line {
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+            border-left: 3px solid transparent;
+        }
+        .code-line.active-line {
+            background-color: rgba(56, 189, 248, 0.16);
+            border-left-color: #38bdf8;
+        }
+        .code-line.active-swap {
+            background-color: rgba(244, 63, 94, 0.18);
+            border-left-color: #f43f5e;
+        }
+        .code-line.active-compare {
+            background-color: rgba(245, 158, 11, 0.16);
+            border-left-color: #f59e0b;
+        }
+        .code-line.active-done {
+            background-color: rgba(16, 185, 129, 0.16);
+            border-left-color: #10b981;
+        }
+        /* Custom compact range slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            height: 6px;
+            border-radius: 999px;
+            background: #1e293b;
+            border: 1px solid #334155;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #38bdf8;
+            margin-top: -6px;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(56,189,248,0.6);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 flex flex-col justify-between p-3 gap-2.5">
+
+    <!-- TOP BAR: Title, Array Input Controls & Playback -->
+    <header class="bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0 shadow-lg">
+        <!-- Brand -->
+        <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20">
+                <i class="fa-solid fa-code-compare text-sm"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <h1 class="text-sm font-extrabold tracking-tight text-white">C Bubble Sort Live Debugger</h1>
+                    <span id="statusBadge" class="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30 font-semibold">
+                        Ready
+                    </span>
+                </div>
+                <p class="text-[11px] text-slate-400 hidden sm:block">Step-by-step micro-execution with live C variables &amp; temp swap animation</p>
+            </div>
+        </div>
+
+        <!-- Playback Controls Center -->
+        <div class="flex items-center space-x-1.5 bg-slate-950/90 px-2.5 py-1 rounded-xl border border-slate-800">
+            <button onclick="resetSort()" title="Reset to Start" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition flex items-center gap-1">
+                <i class="fa-solid fa-rotate-left text-sky-400"></i>
+                <span class="hidden md:inline">Reset</span>
+            </button>
+            <button id="prevBtn" onclick="stepBackward()" title="Previous Micro-Step" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition flex items-center gap-1 disabled:opacity-30 disabled:pointer-events-none">
+                <i class="fa-solid fa-backward-step"></i>
+                <span class="hidden md:inline">Back</span>
+            </button>
+            <button id="playBtn" onclick="togglePlay()" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-sky-500 hover:bg-sky-400 text-slate-950 transition flex items-center gap-1.5 shadow-md shadow-sky-500/20">
+                <i id="playIcon" class="fa-solid fa-play"></i>
+                <span id="playText">Play</span>
+            </button>
+            <button id="nextBtn" onclick="stepForward()" title="Next Micro-Step" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition flex items-center gap-1 disabled:opacity-30 disabled:pointer-events-none">
+                <span class="hidden md:inline">Step</span>
+                <i class="fa-solid fa-forward-step"></i>
+            </button>
+
+            <div class="h-4 w-[1px] bg-slate-800 mx-1"></div>
+
+            <!-- Speed Slider -->
+            <div class="flex items-center space-x-2 px-1">
+                <i class="fa-solid fa-gauge-high text-slate-400 text-xs" title="Animation Speed"></i>
+                <input id="speedSlider" type="range" min="150" max="1500" step="50" value="850" onchange="updateSpeed()" class="w-16 sm:w-20" title="Adjust Speed">
+            </div>
+        </div>
+
+        <!-- Array Input & Randomizer Right -->
+        <div class="flex items-center space-x-2">
+            <div class="flex items-center bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 focus-within:border-sky-500">
+                <span class="text-[11px] font-mono text-slate-400 mr-1.5">arr[] =</span>
+                <input id="customArrayInput" type="text" value="4, 1, 3, 2" class="bg-transparent text-xs font-mono text-white w-28 focus:outline-none" title="Enter 3 to 7 numbers separated by commas">
+                <button onclick="applyCustomInput()" class="ml-1 px-2 py-0.5 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-[11px] font-semibold rounded transition">
+                    Set
+                </button>
+            </div>
+            <button onclick="randomizeArray()" title="Random Array" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 text-xs font-semibold transition flex items-center gap-1.5">
+                <i class="fa-solid fa-shuffle text-amber-400"></i>
+                <span class="hidden xl:inline">Random</span>
+            </button>
+            <div id="errorToast" class="hidden text-[11px] text-rose-400 font-medium bg-rose-950/80 border border-rose-800 px-2 py-1 rounded">
+                Enter 3-7 nums
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE: 12-Column Responsive Split (Fits in remaining height) -->
+    <main class="flex-1 grid grid-cols-12 gap-3 min-h-0 overflow-hidden">
+
+        <!-- LEFT COLUMN (7 Cols): Visual Array Arena + Live Variable Inspector -->
+        <section class="col-span-12 lg:col-span-7 flex flex-col gap-2.5 min-h-0">
+
+            <!-- 1. Visual Array & Temp Slot Card -->
+            <div class="flex-1 bg-slate-900/85 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between min-h-0 relative overflow-hidden shadow-xl">
+                <!-- Top Subheader: Pass Info + Legend -->
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2 shrink-0">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                            <i class="fa-solid fa-cubes text-sky-400"></i>
+                            Memory Visualization
+                        </span>
+                        <span id="stepCounterBadge" class="text-[11px] font-mono bg-slate-950 text-slate-400 px-2 py-0.5 rounded border border-slate-800">
+                            Step 0 / 0
+                        </span>
+                    </div>
+
+                    <!-- Color Legend -->
+                    <div class="flex items-center space-x-3 text-[11px] text-slate-400">
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-sky-500 inline-block"></span>Unsorted</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block"></span>Comparing</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block"></span>Swapping</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block"></span>Sorted</span>
+                    </div>
+                </div>
+
+                <!-- Center Visual Stage: Array Bars + Temp Variable Box on Right -->
+                <div class="flex-1 flex items-center justify-between gap-4 my-1 px-2 min-h-0">
+                    
+                    <!-- Array Elements Container -->
+                    <div id="arrayStage" class="flex-1 h-full flex items-end justify-center gap-3 sm:gap-4 pt-6 pb-2 px-2">
+                        <!-- Rendered dynamically -->
+                    </div>
+
+                    <!-- Dedicated Visual `temp` Holding Box -->
+                    <div class="w-32 sm:w-36 shrink-0 bg-slate-950/90 border border-slate-800 rounded-xl p-3 flex flex-col items-center justify-center relative shadow-inner">
+                        <div class="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                            <i class="fa-solid fa-box-open text-rose-400"></i>
+                            <span>int temp</span>
+                        </div>
+                        <div id="tempVisualBox" class="w-16 h-16 rounded-xl border-2 border-dashed border-slate-700 bg-slate-900 flex items-center justify-center text-xl font-mono font-extrabold text-slate-500 transition-all duration-300">
+                            ?
+                        </div>
+                        <div id="tempVisualCaption" class="text-[10px] font-mono text-slate-400 mt-1.5 text-center leading-tight min-h-[26px] flex items-center justify-center">
+                            Empty slot
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Live Swap / Comparison Pointer Banner -->
+                <div class="bg-slate-950/90 border border-slate-800/90 rounded-lg px-3 py-2 flex items-center justify-between gap-2 shrink-0">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-[11px] font-mono uppercase text-slate-400">Active Operation:</span>
+                        <span id="liveOpFormula" class="text-xs font-mono font-bold text-sky-300">Waiting to start...</span>
+                    </div>
+                    <div id="conditionResultPill" class="text-[11px] font-mono px-2.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                        No Check Active
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Live Variable Watch & Comparison Inspector Dashboard -->
+            <div class="bg-slate-900/85 border border-slate-800 rounded-xl p-3 shrink-0 shadow-xl flex flex-col gap-2.5">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-microchip text-emerald-400"></i>
+                        Live Variable Watch Table
+                    </span>
+                    <span id="passProgressText" class="text-[11px] font-mono text-amber-400">
+                        Pass: -
+                    </span>
+                </div>
+
+                <!-- 6-Column Variable Watch Cards -->
+                <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    <!-- n -->
+                    <div class="bg-slate-950 border border-slate-800/90 rounded-lg p-2 text-center">
+                        <div class="text-[10px] font-mono text-slate-400">int n</div>
+                        <div id="watchN" class="text-sm font-mono font-bold text-slate-200 mt-0.5">4</div>
+                        <div class="text-[9px] text-slate-500">Array Size</div>
+                    </div>
+                    <!-- i -->
+                    <div id="watchCardI" class="bg-slate-950 border border-slate-800/90 rounded-lg p-2 text-center transition-colors">
+                        <div class="text-[10px] font-mono text-sky-400">int i</div>
+                        <div id="watchI" class="text-sm font-mono font-bold text-sky-300 mt-0.5">-</div>
+                        <div id="watchILimit" class="text-[9px] text-slate-500">Outer (&lt; 3)</div>
+                    </div>
+                    <!-- j -->
+                    <div id="watchCardJ" class="bg-slate-950 border border-slate-800/90 rounded-lg p-2 text-center transition-colors">
+                        <div class="text-[10px] font-mono text-amber-400">int j</div>
+                        <div id="watchJ" class="text-sm font-mono font-bold text-amber-300 mt-0.5">-</div>
+                        <div id="watchJLimit" class="text-[9px] text-slate-500">Inner Limit</div>
+                    </div>
+                    <!-- arr[j] -->
+                    <div id="watchCardArrJ" class="bg-slate-950 border border-slate-800/90 rounded-lg p-2 text-center transition-colors">
+                        <div id="watchLabelArrJ" class="text-[10px] font-mono text-amber-400">arr[j]</div>
+                        <div id="watchArrJ" class="text-sm font-mono font-bold text-white mt-0.5">-</div>
+                        <div class="text-[9px] text-slate-500">Left Value</div>
+                    </div>
+                    <!-- arr[j+1] -->
+                    <div id="watchCardArrJ1" class="bg-slate-950 border border-slate-800/90 rounded-lg p-2 text-center transition-colors">
+                        <div id="watchLabelArrJ1" class="text-[10px] font-mono text-amber-400">arr[j+1]</div>
+                        <div id="watchArrJ1" class="text-sm font-mono font-bold text-white mt-0.5">-</div>
+                        <div class="text-[9px] text-slate-500">Right Value</div>
+                    </div>
+                    <!-- temp -->
+                    <div id="watchCardTemp" class="bg-slate-950 border border-slate-800/90 rounded-lg p-2 text-center transition-colors">
+                        <div class="text-[10px] font-mono text-rose-400">int temp</div>
+                        <div id="watchTemp" class="text-sm font-mono font-bold text-rose-300 mt-0.5">-</div>
+                        <div class="text-[9px] text-slate-500">Swap Holder</div>
+                    </div>
+                </div>
+
+                <!-- Step-by-Step Plain English Explanation Box -->
+                <div class="bg-sky-950/30 border border-sky-500/30 rounded-lg px-3 py-2 flex items-center space-x-2.5">
+                    <div class="w-6 h-6 rounded-full bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-300 shrink-0 text-xs">
+                        <i class="fa-solid fa-bolt"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-sky-400">Step-by-Step Explanation</div>
+                        <p id="stepExplanation" class="text-xs text-slate-200 font-medium truncate sm:whitespace-normal leading-snug">
+                            Click "Play" or "Step" to trace the C program line by line with live values.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- RIGHT COLUMN (5 Cols): Live C Code Panel with Inline Dynamic Values -->
+        <section class="col-span-12 lg:col-span-5 bg-slate-900/85 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between min-h-0 shadow-xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2 shrink-0">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-terminal text-sky-400 text-xs"></i>
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">Live C Code Execution &amp; Inline Values</h2>
+                </div>
+                <span class="text-[11px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">bubble_sort.c</span>
+            </div>
+
+            <!-- C Code Lines with Dynamic Live Value Badges -->
+            <div class="flex-1 bg-slate-950 rounded-xl p-2.5 my-2 font-mono text-[11px] sm:text-xs border border-slate-800/90 flex flex-col justify-between overflow-x-auto">
+                
+                <div id="cline1" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">01</span><span class="text-slate-400">#include &lt;stdio.h&gt;</span></div>
+                    <span id="cbadge1" class="hidden text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300"></span>
+                </div>
+
+                <div id="cline2" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">02</span><span class="text-sky-400">int</span> <span class="text-amber-300">main</span>() {</div>
+                    <span id="cbadge2" class="hidden text-[10px] px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30"></span>
+                </div>
+
+                <div id="cline3" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">03</span>  <span class="text-sky-400">int</span> arr[] = {<span id="codeArrLiteral" class="text-emerald-300">4, 1, 3, 2</span>};</div>
+                    <span id="cbadge3" class="hidden text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"></span>
+                </div>
+
+                <div id="cline4" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">04</span>  <span class="text-sky-400">int</span> n = <span id="codeNLiteral" class="text-emerald-300">4</span>, i, j, temp;</div>
+                    <span id="cbadge4" class="hidden text-[10px] px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30"></span>
+                </div>
+
+                <div id="cline5" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">05</span>  <span class="text-pink-400">for</span> (i = <span class="text-emerald-300">0</span>; i &lt; n - <span class="text-emerald-300">1</span>; i++) {</div>
+                    <span id="cbadge5" class="hidden text-[10px] px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-500/40 font-semibold"></span>
+                </div>
+
+                <div id="cline6" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">06</span>    <span class="text-pink-400">for</span> (j = <span class="text-emerald-300">0</span>; j &lt; n - i - <span class="text-emerald-300">1</span>; j++) {</div>
+                    <span id="cbadge6" class="hidden text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold"></span>
+                </div>
+
+                <div id="cline7" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">07</span>      <span class="text-pink-400">if</span> (arr[j] &gt; arr[j + <span class="text-emerald-300">1</span>]) {</div>
+                    <span id="cbadge7" class="hidden text-[10px] px-1.5 py-0.2 rounded font-bold"></span>
+                </div>
+
+                <div id="cline8" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">08</span>        temp = arr[j];</div>
+                    <span id="cbadge8" class="hidden text-[10px] px-1.5 py-0.2 rounded bg-rose-500/25 text-rose-300 border border-rose-500/40 font-bold"></span>
+                </div>
+
+                <div id="cline9" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">09</span>        arr[j] = arr[j + <span class="text-emerald-300">1</span>];</div>
+                    <span id="cbadge9" class="hidden text-[10px] px-1.5 py-0.2 rounded bg-rose-500/25 text-rose-300 border border-rose-500/40 font-bold"></span>
+                </div>
+
+                <div id="cline10" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">10</span>        arr[j + <span class="text-emerald-300">1</span>] = temp;</div>
+                    <span id="cbadge10" class="hidden text-[10px] px-1.5 py-0.2 rounded bg-rose-500/25 text-rose-300 border border-rose-500/40 font-bold"></span>
+                </div>
+
+                <div id="cline11" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">11</span>      }</div>
+                    <span id="cbadge11" class="hidden text-[10px] px-1.5 py-0.2 rounded"></span>
+                </div>
+
+                <div id="cline12" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">12</span>    }</div>
+                    <span id="cbadge12" class="hidden text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"></span>
+                </div>
+
+                <div id="cline13" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">13</span>  }</div>
+                    <span id="cbadge13" class="hidden text-[10px] px-1.5 py-0.2 rounded"></span>
+                </div>
+
+                <div id="cline14" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">14</span>  <span class="text-pink-400">return</span> <span class="text-emerald-300">0</span>; <span class="text-slate-500">// Sorted!</span></div>
+                    <span id="cbadge14" class="hidden text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold"></span>
+                </div>
+
+                <div id="cline15" class="code-line px-2 py-0.5 rounded flex items-center justify-between">
+                    <div><span class="text-slate-600 select-none mr-2">15</span>}</div>
+                </div>
+            </div>
+
+            <!-- Simulated Terminal Output Footer -->
+            <div class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 shrink-0 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <span class="text-[10px] font-mono uppercase text-emerald-400 font-bold">stdout:</span>
+                    <span id="terminalOutput" class="text-xs font-mono text-slate-300">arr[] = { 4, 1, 3, 2 }</span>
+                </div>
+                <div id="statsCounter" class="text-[10px] font-mono text-slate-400">
+                    Comparisons: 0 | Swaps: 0
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- JAVASCRIPT SIMULATION ENGINE -->
+    <script>
+        let baseArray = [4, 1, 3, 2];
+        let traceSteps = [];
+        let currentIdx = 0;
+        let isPlaying = false;
+        let timerId = null;
+
+        /**
+         * Builds a granular micro-step execution trace of Bubble Sort in C
+         */
+        function buildBubbleSortTrace(initialArr) {
+            const arr = [...initialArr];
+            const n = arr.length;
+            const steps = [];
+            let comparisons = 0;
+            let swaps = 0;
+            let sortedIndices = [];
+
+            // Step 0: Initialize array
+            steps.push({
+                arr: [...arr],
+                line: 3,
+                mode: 'init',
+                i: '-',
+                j: '-',
+                temp: '-',
+                tempCaption: 'Empty slot',
+                tempActive: false,
+                comparing: [],
+                swapping: [],
+                sorted: [...sortedIndices],
+                badgeLine: 3,
+                badgeText: `arr[${n}] initialized`,
+                opFormula: `int arr[] = { ${arr.join(', ')} }`,
+                condPill: 'Initializing Memory',
+                condType: 'neutral',
+                explanation: `Initialized integer array with ${n} unsorted elements: { ${arr.join(', ')} }.`,
+                comparisons,
+                swaps
+            });
+
+            // Step 1: Initialize variables
+            steps.push({
+                arr: [...arr],
+                line: 4,
+                mode: 'init',
+                i: '-',
+                j: '-',
+                temp: '-',
+                tempCaption: 'Unassigned',
+                tempActive: false,
+                comparing: [],
+                swapping: [],
+                sorted: [...sortedIndices],
+                badgeLine: 4,
+                badgeText: `n = ${n}`,
+                opFormula: `n = ${n}, i, j, temp declared`,
+                condPill: 'Variables Ready',
+                condType: 'neutral',
+                explanation: `Set array length n = ${n} and declared loop counters i, j and swap variable temp.`,
+                comparisons,
+                swaps
+            });
+
+            for (let i = 0; i < n - 1; i++) {
+                // Outer loop header check
+                steps.push({
+                    arr: [...arr],
+                    line: 5,
+                    mode: 'loop',
+                    i: i,
+                    j: '-',
+                    temp: '-',
+                    tempCaption: 'Empty slot',
+                    tempActive: false,
+                    comparing: [],
+                    swapping: [],
+                    sorted: [...sortedIndices],
+                    badgeLine: 5,
+                    badgeText: `i = ${i} (${i} < ${n - 1} is TRUE)`,
+                    opFormula: `Outer Loop Pass ${i + 1}: i = ${i}, checking i < ${n - 1}`,
+                    condPill: `${i} < ${n - 1} : TRUE`,
+                    condType: 'true',
+                    explanation: `Start Pass #${i + 1} (i = ${i}). Since ${i} < ${n - 1}, we enter the outer loop to bubble the next largest number to index ${n - 1 - i}.`,
+                    comparisons,
+                    swaps
+                });
+
+                for (let j = 0; j < n - i - 1; j++) {
+                    const limit = n - i - 1;
+                    // Inner loop header check
+                    steps.push({
+                        arr: [...arr],
+                        line: 6,
+                        mode: 'loop',
+                        i: i,
+                        j: j,
+                        temp: '-',
+                        tempCaption: 'Empty slot',
+                        tempActive: false,
+                        comparing: [j, j + 1],
+                        swapping: [],
+                        sorted: [...sortedIndices],
+                        badgeLine: 6,
+                        badgeText: `j = ${j} (${j} < ${limit} is TRUE)`,
+                        opFormula: `Inner Loop: j = ${j}, limit n - i - 1 = ${limit}`,
+                        condPill: `Pair: arr[${j}] & arr[${j + 1}]`,
+                        condType: 'neutral',
+                        explanation: `Inner loop at j = ${j} (since ${j} < ${limit}). Ready to inspect adjacent elements at index ${j} and ${j + 1}.`,
+                        comparisons,
+                        swaps
+                    });
+
+                    // Comparison step: if (arr[j] > arr[j + 1])
+                    comparisons++;
+                    const leftVal = arr[j];
+                    const rightVal = arr[j + 1];
+                    const isGreater = leftVal > rightVal;
+
+                    steps.push({
+                        arr: [...arr],
+                        line: 7,
+                        mode: 'compare',
+                        i: i,
+                        j: j,
+                        temp: '-',
+                        tempCaption: 'Empty slot',
+                        tempActive: false,
+                        comparing: [j, j + 1],
+                        swapping: [],
+                        sorted: [...sortedIndices],
+                        badgeLine: 7,
+                        badgeText: `${leftVal} > ${rightVal} is ${isGreater ? 'TRUE' : 'FALSE'}`,
+                        opFormula: `if (arr[${j}] > arr[${j + 1}])  ➔  if (${leftVal} > ${rightVal})`,
+                        condPill: isGreater ? `${leftVal} > ${rightVal} : TRUE (Swap Needed)` : `${leftVal} > ${rightVal} : FALSE (In Order)`,
+                        condType: isGreater ? 'true' : 'false',
+                        explanation: isGreater
+                            ? `Comparing arr[${j}] (${leftVal}) > arr[${j + 1}] (${rightVal}). Since ${leftVal} is greater than ${rightVal}, they are out of order and MUST be swapped!`
+                            : `Comparing arr[${j}] (${leftVal}) > arr[${j + 1}] (${rightVal}). Since ${leftVal} <= ${rightVal}, they are already in order. No swap needed.`,
+                        comparisons,
+                        swaps
+                    });
+
+                    if (isGreater) {
+                        // Micro-step 1 of Swap: temp = arr[j]
+                        const tempVal = arr[j];
+                        steps.push({
+                            arr: [...arr],
+                            line: 8,
+                            mode: 'swap',
+                            i: i,
+                            j: j,
+                            temp: tempVal,
+                            tempCaption: `Saved arr[${j}] = ${tempVal}`,
+                            tempActive: true,
+                            comparing: [],
+                            swapping: [j],
+                            sorted: [...sortedIndices],
+                            badgeLine: 8,
+                            badgeText: `temp ← ${tempVal}`,
+                            opFormula: `temp = arr[${j}]  ➔  temp = ${tempVal}`,
+                            condPill: `Step 1/3: Save ${tempVal} to temp`,
+                            condType: 'swap',
+                            explanation: `Swap Step 1: Copy arr[${j}] (${tempVal}) into 'temp' so we don't lose it when overwriting arr[${j}].`,
+                            comparisons,
+                            swaps
+                        });
+
+                        // Micro-step 2 of Swap: arr[j] = arr[j + 1]
+                        arr[j] = arr[j + 1];
+                        steps.push({
+                            arr: [...arr],
+                            line: 9,
+                            mode: 'swap',
+                            i: i,
+                            j: j,
+                            temp: tempVal,
+                            tempCaption: `Holding ${tempVal}`,
+                            tempActive: true,
+                            comparing: [],
+                            swapping: [j, j + 1],
+                            sorted: [...sortedIndices],
+                            badgeLine: 9,
+                            badgeText: `arr[${j}] ← ${rightVal}`,
+                            opFormula: `arr[${j}] = arr[${j + 1}]  ➔  arr[${j}] = ${rightVal}`,
+                            condPill: `Step 2/3: Move ${rightVal} to arr[${j}]`,
+                            condType: 'swap',
+                            explanation: `Swap Step 2: Move smaller right value arr[${j + 1}] (${rightVal}) into left slot arr[${j}].`,
+                            comparisons,
+                            swaps
+                        });
+
+                        // Micro-step 3 of Swap: arr[j + 1] = temp
+                        arr[j + 1] = tempVal;
+                        swaps++;
+                        steps.push({
+                            arr: [...arr],
+                            line: 10,
+                            mode: 'swap',
+                            i: i,
+                            j: j,
+                            temp: tempVal,
+                            tempCaption: `Copied ${tempVal} to arr[${j + 1}]`,
+                            tempActive: true,
+                            comparing: [],
+                            swapping: [j, j + 1],
+                            sorted: [...sortedIndices],
+                            badgeLine: 10,
+                            badgeText: `arr[${j + 1}] ← ${tempVal}`,
+                            opFormula: `arr[${j + 1}] = temp  ➔  arr[${j + 1}] = ${tempVal}`,
+                            condPill: `Step 3/3: Swap Complete!`,
+                            condType: 'swap',
+                            explanation: `Swap Step 3: Place original value from temp (${tempVal}) into right slot arr[${j + 1}]. The pair is now [${rightVal}, ${tempVal}]!`,
+                            comparisons,
+                            swaps
+                        });
+                    }
+                }
+
+                // End of inner loop pass: element at n - 1 - i is now locked in sorted order
+                const lockedIndex = n - 1 - i;
+                sortedIndices.push(lockedIndex);
+
+                steps.push({
+                    arr: [...arr],
+                    line: 12,
+                    mode: 'done',
+                    i: i,
+                    j: n - i - 1,
+                    temp: '-',
+                    tempCaption: 'Pass complete',
+                    tempActive: false,
+                    comparing: [],
+                    swapping: [],
+                    sorted: [...sortedIndices],
+                    badgeLine: 12,
+                    badgeText: `arr[${lockedIndex}] = ${arr[lockedIndex]} locked!`,
+                    opFormula: `End of Pass ${i + 1}: Largest remaining value ${arr[lockedIndex]} bubbled to arr[${lockedIndex}]`,
+                    condPill: `arr[${lockedIndex}] Sorted`,
+                    condType: 'true',
+                    explanation: `Pass #${i + 1} finished! Value ${arr[lockedIndex]} has bubbled up to its final sorted position at arr[${lockedIndex}].`,
+                    comparisons,
+                    swaps
+                });
+            }
+
+            // Mark the very first element sorted too
+            if (!sortedIndices.includes(0)) sortedIndices.push(0);
+
+            // Final step: return 0
+            steps.push({
+                arr: [...arr],
+                line: 14,
+                mode: 'done',
+                i: n - 1,
+                j: '-',
+                temp: '-',
+                tempCaption: 'Sorted!',
+                tempActive: false,
+                comparing: [],
+                swapping: [],
+                sorted: Array.from({ length: n }, (_, idx) => idx),
+                badgeLine: 14,
+                badgeText: `Sorted: {${arr.join(', ')}}`,
+                opFormula: `Bubble Sort Complete! Final Array: { ${arr.join(', ')} }`,
+                condPill: '100% Sorted!',
+                condType: 'true',
+                explanation: `All ${n} elements are now in ascending order: { ${arr.join(', ')} }. Total comparisons: ${comparisons}, Total swaps: ${swaps}.`,
+                comparisons,
+                swaps
+            });
+
+            return steps;
+        }
+
+        function renderCurrentStep() {
+            const step = traceSteps[currentIdx];
+            if (!step) return;
+
+            const n = step.arr.length;
+            const maxVal = Math.max(...step.arr.map(v => Math.abs(v)), 5);
+
+            // 1. Update Top Code Literal & Step Badges
+            document.getElementById('codeArrLiteral').innerText = baseArray.join(', ');
+            document.getElementById('codeNLiteral').innerText = n;
+            document.getElementById('stepCounterBadge').innerText = `Step ${currentIdx + 1} / ${traceSteps.length}`;
+
+            // Back / Next button states
+            document.getElementById('prevBtn').disabled = (currentIdx === 0);
+            document.getElementById('nextBtn').disabled = (currentIdx === traceSteps.length - 1);
+
+            // Status Badge
+            const statusBadge = document.getElementById('statusBadge');
+            if (currentIdx === traceSteps.length - 1) {
+                statusBadge.innerText = 'Sorted';
+                statusBadge.className = 'text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold';
+            } else if (isPlaying) {
+                statusBadge.innerText = 'Running';
+                statusBadge.className = 'text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold';
+            } else {
+                statusBadge.innerText = 'Paused / Step';
+                statusBadge.className = 'text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30 font-semibold';
+            }
+
+            // 2. Render Visual Array Bars + Pointer Tags
+            const stage = document.getElementById('arrayStage');
+            stage.innerHTML = '';
+
+            step.arr.forEach((val, idx) => {
+                const heightPct = Math.max(28, Math.round((Math.abs(val) / maxVal) * 92));
+
+                let barStyle = 'bg-gradient-to-t from-sky-600 to-sky-400 border-sky-300 text-slate-950';
+                let badgeLabel = '';
+
+                if (step.sorted.includes(idx)) {
+                    barStyle = 'bg-gradient-to-t from-emerald-600 to-emerald-400 border-emerald-300 text-slate-950 shadow-lg shadow-emerald-500/20';
+                    badgeLabel = '<span class="text-[9px] font-mono bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Sorted</span>';
+                }
+                if (step.comparing.includes(idx)) {
+                    barStyle = 'bg-gradient-to-t from-amber-500 to-yellow-300 border-yellow-200 text-slate-950 shadow-lg shadow-amber-500/30 scale-105';
+                    badgeLabel = idx === step.j
+                        ? '<span class="text-[10px] font-mono font-bold bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded shadow">arr[j]</span>'
+                        : '<span class="text-[10px] font-mono font-bold bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded shadow">arr[j+1]</span>';
+                }
+                if (step.swapping.includes(idx)) {
+                    barStyle = 'bg-gradient-to-t from-rose-600 to-rose-400 border-rose-200 text-white shadow-xl shadow-rose-500/40 scale-105';
+                    badgeLabel = idx === step.j
+                        ? '<span class="text-[10px] font-mono font-bold bg-rose-500 text-white px-1.5 py-0.5 rounded shadow">arr[j]</span>'
+                        : '<span class="text-[10px] font-mono font-bold bg-rose-500 text-white px-1.5 py-0.5 rounded shadow">arr[j+1]</span>';
+                }
+
+                const col = document.createElement('div');
+                col.className = 'flex flex-col items-center justify-end h-full flex-1 max-w-[74px] select-none';
+                col.innerHTML = `
+                    <div class="h-5 flex items-center justify-center mb-1">${badgeLabel}</div>
+                    <div style="height: ${heightPct}%" class="w-full rounded-xl border-2 ${barStyle} bar-anim flex flex-col items-center justify-center relative">
+                        <span class="text-base sm:text-lg font-mono font-extrabold tracking-tight">${val}</span>
+                    </div>
+                    <div class="mt-1.5 text-[11px] font-mono text-slate-400 font-semibold">arr[${idx}]</div>
+                `;
+                stage.appendChild(col);
+            });
+
+            // 3. Update Temp Variable Visual Box
+            const tempBox = document.getElementById('tempVisualBox');
+            const tempCaption = document.getElementById('tempVisualCaption');
+            tempCaption.innerText = step.tempCaption;
+
+            if (step.tempActive) {
+                tempBox.innerText = step.temp;
+                tempBox.className = 'w-16 h-16 rounded-xl border-2 border-rose-400 bg-rose-500/20 flex items-center justify-center text-2xl font-mono font-extrabold text-rose-300 shadow-lg shadow-rose-500/25 scale-105 transition-all duration-300';
+            } else {
+                tempBox.innerText = step.temp === '-' ? '?' : step.temp;
+                tempBox.className = 'w-16 h-16 rounded-xl border-2 border-dashed border-slate-700 bg-slate-900 flex items-center justify-center text-xl font-mono font-extrabold text-slate-500 transition-all duration-300';
+            }
+
+            // 4. Update Active Operation Formula & Condition Result Pill
+            document.getElementById('liveOpFormula').innerText = step.opFormula;
+            const pill = document.getElementById('conditionResultPill');
+            pill.innerText = step.condPill;
+            if (step.condType === 'true') {
+                pill.className = 'text-[11px] font-mono font-bold px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+            } else if (step.condType === 'false') {
+                pill.className = 'text-[11px] font-mono font-bold px-2.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-600';
+            } else if (step.condType === 'swap') {
+                pill.className = 'text-[11px] font-mono font-bold px-2.5 py-0.5 rounded bg-rose-500/25 text-rose-300 border border-rose-500/40 animate-pulse';
+            } else {
+                pill.className = 'text-[11px] font-mono px-2.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700';
+            }
+
+            // 5. Update Live Variable Watch Cards
+            document.getElementById('watchN').innerText = n;
+            document.getElementById('watchI').innerText = step.i;
+            document.getElementById('watchILimit').innerText = `Outer (< ${n - 1})`;
+            document.getElementById('watchJ').innerText = step.j;
+            document.getElementById('watchJLimit').innerText = typeof step.i === 'number' ? `Limit (< ${n - step.i - 1})` : 'Inner Limit';
+
+            if (typeof step.j === 'number' && step.j < n - 1) {
+                document.getElementById('watchLabelArrJ').innerText = `arr[${step.j}]`;
+                document.getElementById('watchArrJ').innerText = step.arr[step.j];
+                document.getElementById('watchLabelArrJ1').innerText = `arr[${step.j + 1}]`;
+                document.getElementById('watchArrJ1').innerText = step.arr[step.j + 1];
+            } else {
+                document.getElementById('watchLabelArrJ').innerText = 'arr[j]';
+                document.getElementById('watchArrJ').innerText = '-';
+                document.getElementById('watchLabelArrJ1').innerText = 'arr[j+1]';
+                document.getElementById('watchArrJ1').innerText = '-';
+            }
+
+            document.getElementById('watchTemp').innerText = step.temp;
+            document.getElementById('passProgressText').innerText = typeof step.i === 'number'
+                ? `Pass ${Math.min(step.i + 1, n - 1)} of ${n - 1}`
+                : 'Ready';
+
+            // 6. Update Plain-English Step Explanation
+            document.getElementById('stepExplanation').innerText = step.explanation;
+
+            // 7. Highlight C Source Line & Show Inline Live Badge
+            for (let ln = 1; ln <= 15; ln++) {
+                const lineEl = document.getElementById(`cline${ln}`);
+                const badgeEl = document.getElementById(`cbadge${ln}`);
+                if (lineEl) {
+                    lineEl.className = 'code-line px-2 py-0.5 rounded flex items-center justify-between';
+                    if (ln === step.line) {
+                        if (step.mode === 'swap') lineEl.classList.add('active-swap');
+                        else if (step.mode === 'compare') lineEl.classList.add('active-compare');
+                        else if (step.mode === 'done') lineEl.classList.add('active-done');
+                        else lineEl.classList.add('active-line');
+                    }
+                }
+                if (badgeEl) {
+                    if (ln === step.badgeLine && step.badgeText) {
+                        badgeEl.innerText = step.badgeText;
+                        badgeEl.classList.remove('hidden');
+                        if (ln === 7) {
+                            badgeEl.className = step.condType === 'true'
+                                ? 'text-[10px] px-1.5 py-0.2 rounded bg-amber-500/25 text-amber-300 border border-amber-500/50 font-bold'
+                                : 'text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700 font-semibold';
+                        }
+                    } else {
+                        badgeEl.classList.add('hidden');
+                    }
+                }
+            }
+
+            // 8. Update Terminal Output & Counters
+            document.getElementById('terminalOutput').innerText = `arr[] = { ${step.arr.join(', ')} }`;
+            document.getElementById('statsCounter').innerText = `Comparisons: ${step.comparisons} | Swaps: ${step.swaps}`;
+        }
+
+        function stepForward() {
+            if (currentIdx < traceSteps.length - 1) {
+                currentIdx++;
+                renderCurrentStep();
+            } else {
+                pauseSort();
+            }
+        }
+
+        function stepBackward() {
+            pauseSort();
+            if (currentIdx > 0) {
+                currentIdx--;
+                renderCurrentStep();
+            }
+        }
+
+        function getIntervalSpeed() {
+            const sliderVal = parseInt(document.getElementById('speedSlider').value, 10);
+            return 1650 - sliderVal;
+        }
+
+        function togglePlay() {
+            if (isPlaying) {
+                pauseSort();
+            } else {
+                if (currentIdx >= traceSteps.length - 1) {
+                    currentIdx = 0;
+                }
+                isPlaying = true;
+                document.getElementById('playIcon').className = 'fa-solid fa-pause';
+                document.getElementById('playText').innerText = 'Pause';
+                renderCurrentStep();
+                timerId = setInterval(() => {
+                    if (currentIdx < traceSteps.length - 1) {
+                        currentIdx++;
+                        renderCurrentStep();
+                    } else {
+                        pauseSort();
+                    }
+                }, getIntervalSpeed());
+            }
+        }
+
+        function updateSpeed() {
+            if (isPlaying) {
+                clearInterval(timerId);
+                timerId = setInterval(() => {
+                    if (currentIdx < traceSteps.length - 1) {
+                        currentIdx++;
+                        renderCurrentStep();
+                    } else {
+                        pauseSort();
+                    }
+                }, getIntervalSpeed());
+            }
+        }
+
+        function pauseSort() {
+            isPlaying = false;
+            if (timerId) clearInterval(timerId);
+            document.getElementById('playIcon').className = 'fa-solid fa-play';
+            document.getElementById('playText').innerText = 'Play';
+            renderCurrentStep();
+        }
+
+        function resetSort() {
+            pauseSort();
+            currentIdx = 0;
+            renderCurrentStep();
+        }
+
+        function applyCustomInput() {
+            const raw = document.getElementById('customArrayInput').value;
+            const parsed = raw.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+            const errEl = document.getElementById('errorToast');
+
+            if (parsed.length < 3 || parsed.length > 7) {
+                errEl.classList.remove('hidden');
+                setTimeout(() => errEl.classList.add('hidden'), 2500);
+                return;
+            }
+            errEl.classList.add('hidden');
+            pauseSort();
+            baseArray = parsed;
+            traceSteps = buildBubbleSortTrace(baseArray);
+            currentIdx = 0;
+            renderCurrentStep();
+        }
+
+        function randomizeArray() {
+            pauseSort();
+            const len = Math.floor(Math.random() * 3) + 4; // 4 to 6 elements
+            const randArr = Array.from({ length: len }, () => Math.floor(Math.random() * 19) + 1);
+            baseArray = randArr;
+            document.getElementById('customArrayInput').value = baseArray.join(', ');
+            traceSteps = buildBubbleSortTrace(baseArray);
+            currentIdx = 0;
+            renderCurrentStep();
+        }
+
+        window.onload = function () {
+            traceSteps = buildBubbleSortTrace(baseArray);
+            currentIdx = 0;
+            renderCurrentStep();
+        };
+    </script>
+</body>
+</html>
