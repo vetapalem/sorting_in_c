@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimalist QR Code Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 flex flex-col items-center justify-between p-6 select-none">
+
+    <!-- Top Unobtrusive URL Input Bar -->
+    <div class="w-full max-w-md pt-2">
+        <div class="relative flex items-center">
+            <i class="fa-solid fa-link absolute left-4 text-slate-500 text-sm pointer-events-none"></i>
+            <input 
+                id="urlInput" 
+                type="text" 
+                value="https://google.com" 
+                oninput="renderQR()"
+                placeholder="Paste or type a URL..." 
+                autofocus
+                class="w-full bg-slate-900/90 border border-slate-800 focus:border-sky-500 rounded-full py-3 pl-10 pr-10 text-sm text-white placeholder-slate-500 focus:outline-none shadow-lg transition"
+            />
+            <button 
+                onclick="clearInput()" 
+                id="clearBtn"
+                title="Clear URL"
+                class="absolute right-3.5 text-slate-500 hover:text-slate-300 transition">
+                <i class="fa-solid fa-circle-xmark text-sm"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Center Large Crisp QR Code Canvas -->
+    <div class="flex-1 flex items-center justify-center my-4">
+        <div class="bg-white p-5 rounded-3xl shadow-2xl shadow-sky-500/10 border border-slate-800/20 transition-transform duration-200">
+            <canvas id="qrCanvas" class="block rounded-lg w-[260px] h-[260px] sm:w-[300px] sm:h-[300px]"></canvas>
+        </div>
+    </div>
+
+    <!-- Bottom Small Download PNG Button -->
+    <div class="pb-2">
+        <button 
+            onclick="downloadQR()" 
+            class="px-5 py-2.5 rounded-full bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-800 text-xs font-medium tracking-wide transition flex items-center gap-2 shadow-md">
+            <i class="fa-solid fa-download text-sky-400"></i>
+            <span>Download PNG</span>
+        </button>
+    </div>
+
+    <script>
+        function renderQR() {
+            const inputEl = document.getElementById('urlInput');
+            const clearBtn = document.getElementById('clearBtn');
+            const rawText = inputEl.value.trim();
+
+            clearBtn.style.display = inputEl.value.length > 0 ? 'block' : 'none';
+
+            const payload = rawText || ' ';
+            const canvas = document.getElementById('qrCanvas');
+            const size = 600; // High-DPI internal resolution for crisp rendering
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            // Fill pure white background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, size, size);
+
+            try {
+                const qr = qrcode(0, 'M');
+                qr.addData(payload);
+                qr.make();
+
+                const moduleCount = qr.getModuleCount();
+                const margin = 2;
+                const totalModules = moduleCount + margin * 2;
+                const cellSize = size / totalModules;
+
+                ctx.fillStyle = '#0f172a';
+                for (let r = 0; r < moduleCount; r++) {
+                    for (let c = 0; c < moduleCount; c++) {
+                        if (qr.isDark(r, c)) {
+                            const x = Math.floor((c + margin) * cellSize);
+                            const y = Math.floor((r + margin) * cellSize);
+                            const w = Math.ceil((c + margin + 1) * cellSize) - x;
+                            const h = Math.ceil((r + margin + 1) * cellSize) - y;
+                            ctx.fillRect(x, y, w, h);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function clearInput() {
+            const inputEl = document.getElementById('urlInput');
+            inputEl.value = '';
+            inputEl.focus();
+            renderQR();
+        }
+
+        function downloadQR() {
+            const canvas = document.getElementById('qrCanvas');
+            const link = document.createElement('a');
+            link.download = 'qrcode.png';
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        window.onload = renderQR;
+    </script>
+</body>
+</html>
